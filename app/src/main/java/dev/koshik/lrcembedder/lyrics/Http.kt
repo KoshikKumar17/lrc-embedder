@@ -26,3 +26,23 @@ suspend fun <T> safe(block: suspend () -> T): T? = try {
 } catch (e: Exception) {
     null
 }
+
+/** Retries transient failures with exponential backoff. Never swallows coroutine cancellation. */
+suspend fun <T> withRetry(
+    maxAttempts: Int = 2,
+    baseDelayMs: Long = 400,
+    block: suspend () -> T
+): T {
+    var attempt = 0
+    while (true) {
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            attempt++
+            if (attempt >= maxAttempts) throw e
+            kotlinx.coroutines.delay(baseDelayMs shl (attempt - 1))
+        }
+    }
+}

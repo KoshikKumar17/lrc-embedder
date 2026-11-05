@@ -40,7 +40,7 @@ fun directionLabel(f: SortField, ascending: Boolean): String = when (f) {
 }
 
 /** State of the per-song search sheet. */
-class SheetUi(val song: Song, initialTitle: String, initialArtist: String) {
+class SheetUi(val song: Song, val initialTitle: String, val initialArtist: String) {
     var title by mutableStateOf(initialTitle)
     var artist by mutableStateOf(initialArtist)
     var results by mutableStateOf<List<LyricsResult>>(emptyList())
@@ -197,7 +197,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             s.searching = true
             s.message = null
-            val q = QueryCleaner.manual(s.title, s.artist, s.song.durationMs / 1000.0)
+            // untouched text: use the full song reading (file name, tags); edited text: search exactly that
+            val q = if (s.title == s.initialTitle && s.artist == s.initialArtist) {
+                QueryCleaner.fromSong(s.song)
+            } else {
+                QueryCleaner.manual(s.title, s.artist, s.song.durationMs / 1000.0)
+            }
             s.results = try {
                 LyricsService.searchAll(q).distinctBy { it.key }
             } catch (e: CancellationException) {

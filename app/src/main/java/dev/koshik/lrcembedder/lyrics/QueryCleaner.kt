@@ -84,7 +84,11 @@ object QueryCleaner {
                 title = right
             }
         }
-        return manual(title, artistRaw, song.durationMs / 1000.0)
+        return manual(title, artistRaw, song.durationMs / 1000.0).copy(
+            path = song.path,
+            rawTitle = song.title,
+            rawArtist = song.artist
+        )
     }
 
     /** Used for text typed by the user in the search sheet. */
@@ -92,6 +96,6 @@ object QueryCleaner {
         val t = cleanTitle(title)
         val a = cleanArtist(artist)
         val primary = artists(artist).firstOrNull().orEmpty()
-        return SongQuery(t, a, primary, durationSec?.takeIf { it > 0 })
+        return SongQuery(t, a, primary, durationSec?.takeIf { it > 0 }, rawTitle = title, rawArtist = artist)
     }
 }

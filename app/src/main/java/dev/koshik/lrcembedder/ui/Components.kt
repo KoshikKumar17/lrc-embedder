@@ -89,6 +89,7 @@ fun providerColor(p: Provider): Color = when (p) {
     Provider.LRCLIB -> MaterialTheme.colorScheme.tertiary
     Provider.NETEASE -> MaterialTheme.colorScheme.secondary
     Provider.QQ -> MaterialTheme.colorScheme.primary
+    Provider.DEEZER -> MaterialTheme.colorScheme.inversePrimary
 }
 
 @Composable

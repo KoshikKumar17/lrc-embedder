@@ -4,9 +4,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -34,44 +31,17 @@ object NeteaseClient {
             "WM_TID=AAkRFnl03RdABEBEQFOBWHCPOeMra4IL; " +
             "playerid=94262567"
 
-    private class Candidate(
-        val id: Long,
-        val name: String,
-        val artist: String,
-        val album: String?,
-        val durationSec: Double?
-    )
-
-    suspend fun search(q: SongQuery): List<LyricsResult> {
-        val terms = buildList {
-            add("${q.title} ${q.artist}".trim())
-            if (q.primaryArtist.isNotBlank() && q.primaryArtist != q.artist) {
-                add("${q.title} ${q.primaryArtist}".trim())
-            }
-            add(q.title)
-        }.filter { it.isNotBlank() }.distinct()
-
-        val candidates = LinkedHashMap<Long, Candidate>()
-        for (term in terms) {
-            safe { searchSongs(term) }?.forEach { candidates.putIfAbsent(it.id, it) }
-            if (candidates.size >= 8) break
-        }
-        if (candidates.isEmpty()) return emptyList()
-
-        val top = candidates.values
-            .sortedByDescending { Scoring.score(q, it.name, it.artist, it.durationSec, false) }
-            .take(4)
-
-        return coroutineScope {
-            top.map { c -> async { safe { fetchLyrics(c) } } }.awaitAll().filterNotNull()
-        }
+    /** Up to [limit] search hits; lyrics are fetched lazily for the ones the matcher likes. */
+    suspend fun search(term: String, limit: Int = 8): List<RawHit> {
+        if (term.isBlank()) return emptyList()
+        return searchSongs(term, limit)
     }
 
-    private suspend fun searchSongs(term: String): List<Candidate> {
+    private suspend fun searchSongs(term: String, limit: Int): List<RawHit> {
         val resp = Http.client.get("$BASE/search/pc") {
             parameter("s", term)
             parameter("type", 1)
-            parameter("limit", 10)
+            parameter("limit", limit)
             parameter("offset", 0)
             applyHeaders()
         }
@@ -89,13 +59,20 @@ object NeteaseClient {
             val album = ((o["album"] as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull
             val ms = (o["duration"] as? JsonPrimitive)?.doubleOrNull
                 ?: (o["dt"] as? JsonPrimitive)?.doubleOrNull
-            Candidate(id, name, artists, album, ms?.let { it / 1000.0 })
+            RawHit(
+                provider = Provider.NETEASE,
+                title = name,
+                artist = artists,
+                album = album,
+                durationSec = ms?.let { it / 1000.0 },
+                fetch = { fetchLyrics(id) }
+            )
         }
     }
 
-    private suspend fun fetchLyrics(c: Candidate): LyricsResult? {
+    private suspend fun fetchLyrics(id: Long): LyricsBody? {
         val resp = Http.client.get("$BASE/song/lyric") {
-            parameter("id", c.id)
+            parameter("id", id)
             parameter("lv", 1)
             applyHeaders()
         }
@@ -107,12 +84,7 @@ object NeteaseClient {
         val text = LrcTools.normalize(raw)
         if (text.isBlank()) return null
         val synced = LrcTools.isSynced(text)
-        return LyricsResult(
-            provider = Provider.NETEASE,
-            title = c.name,
-            artist = c.artist,
-            album = c.album,
-            durationSec = c.durationSec,
+        return LyricsBody(
             synced = if (synced) text else null,
             plain = if (synced) null else text
         )

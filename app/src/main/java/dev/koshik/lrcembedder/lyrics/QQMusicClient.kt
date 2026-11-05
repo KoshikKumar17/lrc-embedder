@@ -5,9 +5,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -20,40 +17,13 @@ object QQMusicClient {
     private const val LYRIC = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
     private const val UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
 
-    private class Candidate(
-        val mid: String,
-        val name: String,
-        val artist: String,
-        val album: String?,
-        val durationSec: Double?
-    )
-
-    suspend fun search(q: SongQuery): List<LyricsResult> {
-        val terms = buildList {
-            add("${q.title} ${q.artist}".trim())
-            if (q.primaryArtist.isNotBlank() && q.primaryArtist != q.artist) {
-                add("${q.title} ${q.primaryArtist}".trim())
-            }
-            add(q.title)
-        }.filter { it.isNotBlank() }.distinct()
-
-        val candidates = LinkedHashMap<String, Candidate>()
-        for (term in terms) {
-            safe { searchSongs(term) }?.forEach { candidates.putIfAbsent(it.mid, it) }
-            if (candidates.size >= 8) break
-        }
-        if (candidates.isEmpty()) return emptyList()
-
-        val top = candidates.values
-            .sortedByDescending { Scoring.score(q, it.name, it.artist, it.durationSec, false) }
-            .take(4)
-
-        return coroutineScope {
-            top.map { c -> async { safe { fetchLyrics(c) } } }.awaitAll().filterNotNull()
-        }
+    /** Up to [limit] search hits; lyrics are fetched lazily for the ones the matcher likes. */
+    suspend fun search(term: String, limit: Int = 10): List<RawHit> {
+        if (term.isBlank()) return emptyList()
+        return searchSongs(term, limit)
     }
 
-    private suspend fun searchSongs(term: String): List<Candidate> {
+    private suspend fun searchSongs(term: String, limit: Int): List<RawHit> {
         val resp = Http.client.get(SEARCH) {
             parameter("w", term)
             parameter("format", "json")
@@ -61,7 +31,7 @@ object QQMusicClient {
             parameter("outCharset", "utf8")
             parameter("platform", "yqq.json")
             parameter("new_json", 1)
-            parameter("n", 10)
+            parameter("n", limit)
             parameter("p", 1)
             header("User-Agent", UA)
             header("Referer", "https://y.qq.com/")
@@ -82,13 +52,20 @@ object QQMusicClient {
                 ?.joinToString(", ").orEmpty()
             val album = ((o["album"] as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull
             val dur = (o["interval"] as? JsonPrimitive)?.doubleOrNull
-            Candidate(mid, name, artists, album, dur)
+            RawHit(
+                provider = Provider.QQ,
+                title = name,
+                artist = artists,
+                album = album,
+                durationSec = dur,
+                fetch = { fetchLyrics(mid) }
+            )
         }
     }
 
-    private suspend fun fetchLyrics(c: Candidate): LyricsResult? {
+    private suspend fun fetchLyrics(mid: String): LyricsBody? {
         val resp = Http.client.get(LYRIC) {
-            parameter("songmid", c.mid)
+            parameter("songmid", mid)
             parameter("g_tk", 5381)
             parameter("format", "json")
             parameter("nobase64", 1)
@@ -106,12 +83,7 @@ object QQMusicClient {
         val text = LrcTools.normalize(decodeEntities(raw))
         if (text.isBlank()) return null
         val synced = LrcTools.isSynced(text)
-        return LyricsResult(
-            provider = Provider.QQ,
-            title = c.name,
-            artist = c.artist,
-            album = c.album,
-            durationSec = c.durationSec,
+        return LyricsBody(
             synced = if (synced) text else null,
             plain = if (synced) null else text
         )
