@@ -175,6 +175,7 @@ fun SongCard(
                     }
                     Text(
                         song.artist.ifBlank { "Unknown artist" },
+                        modifier = Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -183,12 +184,22 @@ fun SongCard(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            AnimatedContent(targetState = if (selected) 2 else if (done) 1 else 0, label = "status") { st ->
-                when (st) {
-                    2 -> Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = primary)
-                    1 -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Has lyrics", tint = MaterialTheme.colorScheme.tertiary)
-                    else -> Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = ink.copy(alpha = 0.35f))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AnimatedContent(targetState = if (selected) 2 else if (done) 1 else 0, label = "status") { st ->
+                    when (st) {
+                        2 -> Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = primary)
+                        1 -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Has lyrics", tint = MaterialTheme.colorScheme.tertiary)
+                        else -> Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = ink.copy(alpha = 0.35f))
+                    }
                 }
+                val totalSec = song.durationMs.coerceAtLeast(0L) / 1000L
+                Pill(
+                    String.format(java.util.Locale.ROOT, "%02d:%02d", totalSec / 60, totalSec % 60),
+                    MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
