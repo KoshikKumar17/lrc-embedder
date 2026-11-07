@@ -1,6 +1,7 @@
 package dev.koshik.lrcembedder.lyrics.matching
 
 // Ported from MusicResync (https://github.com/DynamycSound/MusicResync), GPL-3.0.
+// Some optimizations by https://github.com/KoshikKumar17 
 
 import java.util.Locale
 
@@ -87,9 +88,9 @@ object TextMatch {
         s = garbledChars.replace(s, " ")
         // Double quotes around a title ('Summer Cem - "TMM TMM"') defeat provider search — drop them.
         // Apostrophes are kept: they are part of words ("don't").
-        s = s.replace(Regex("""["“”„«»]"""), " ")
+        s = quoteChars.replace(s, " ")
         s = s.replace('_', ' ')
-        s = s.replace(Regex("""[\s]+"""), " ").trim()
+        s = multiSpace.replace(s, " ").trim()
         // Drop dangling separators/brackets left behind by removals.
         return trimDangling(s)
     }
@@ -130,9 +131,23 @@ object TextMatch {
         if (s.none { it in 'Ѐ'..'ӿ' }) s
         else buildString { for (c in s) append(cyrillicMap[c] ?: c.toString()) }
 
-    /** Aggressive normalization used only for *comparison* (not for display or queries). */
+    private val quoteChars = Regex("""["“”„«»]""")
+    private val multiSpace = Regex("""\s+""")
+    private val combiningMarks = Regex("""\p{Mn}+""")
+    private val nonAlnum = Regex("""[^a-z0-9 ]""")
+    private val normCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Aggressive normalization used only for *comparison* (not for display or queries). Memoized. */
     fun normalizeForCompare(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
+        normCache[raw]?.let { return it }
+        val out = normalizeUncached(raw)
+        if (normCache.size > 5000) normCache.clear()
+        normCache[raw] = out
+        return out
+    }
+
+    private fun normalizeUncached(raw: String): String {
         var s = raw.lowercase(Locale.ROOT)
         s = transliterateCyrillic(s)
         s = noiseBrackets.replace(s, " ")
@@ -140,10 +155,10 @@ object TextMatch {
         s = featRegex.replace(s, " ")
         // strip accents
         s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
-            .replace(Regex("""\p{Mn}+"""), "")
+            .let { combiningMarks.replace(it, "") }
         // keep alphanumerics and spaces only
-        s = s.replace(Regex("""[^a-z0-9 ]"""), " ")
-        s = s.replace(Regex("""\s+"""), " ").trim()
+        s = nonAlnum.replace(s, " ")
+        s = multiSpace.replace(s, " ").trim()
         return s
     }
 
