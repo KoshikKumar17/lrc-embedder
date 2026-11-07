@@ -6,10 +6,15 @@ import dev.koshik.lrcembedder.lyrics.matching.LocalTrack
 import dev.koshik.lrcembedder.lyrics.matching.MatchTier
 import dev.koshik.lrcembedder.lyrics.matching.ProviderResult
 import dev.koshik.lrcembedder.lyrics.matching.QueryCandidate
+import android.util.Log
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -19,7 +24,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Several optimizations by Koshik Kumar - https://github.com/KoshikKumar17
  */
 object LyricsService {
-    private const val PROVIDER_TIMEOUT_MS = 25_000L
+    private const val PROVIDER_TIMEOUT_MS = 10_000L
+    /** After a believable match arrives, how long to keep waiting for slower providers. */
+    private const val GRACE_MS = 1_500L
     private const val REQUEST_DELAY_MS = 150L
     private const val MAX_QUERIES = 6
     /** Spotify is a metered API (free tier ~1000 requests/month), so it gets very few queries per song. */
@@ -38,18 +45,37 @@ object LyricsService {
      * Free providers in parallel first; trustworthy matches first, doubtful ones after (still selectable).
      * Spotify (metered RapidAPI) is only queried as a last resort, when nothing believable was found.
      */
-    suspend fun searchAll(q: SongQuery): List<LyricsResult> = coroutineScope {
+    suspend fun searchAll(q: SongQuery): List<LyricsResult> = withContext(Dispatchers.Default) {
+      coroutineScope {
         val local = Matcher.localTrack(q)
         val cands = Matcher.candidates(q)
         val guesses = Matcher.artistGuesses(local, cands)
 
+        val t0 = System.currentTimeMillis()
         val jobs = Provider.values().filter { it != Provider.SPOTIFY }.map { p ->
             async {
-                withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { searchProvider(p, local, cands, guesses) }
-                    ?: emptyList()
+                val r = withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { searchProvider(p, local, cands, guesses) }
+                Log.d("LRC", "$p ${if (r == null) "TIMED OUT" else "${r.size} results"} after ${System.currentTimeMillis() - t0} ms")
+                r ?: emptyList()
             }
         }
-        val results = jobs.awaitAll().flatten().toMutableList()
+        // Collect providers as they finish. A slow or unreachable provider must not hold up the rest:
+        // once something believable is in, give the others only a short grace period.
+        val results = mutableListOf<LyricsResult>()
+        val pending = jobs.toMutableList<Deferred<List<LyricsResult>>>()
+        var graceStarted = false
+        while (pending.isNotEmpty()) {
+            val next: Deferred<List<LyricsResult>>? = if (graceStarted) {
+                withTimeoutOrNull(GRACE_MS) { select { pending.forEach { d -> d.onAwait { d } } } }
+            } else {
+                select { pending.forEach { d -> d.onAwait { d } } }
+            }
+            if (next == null) break
+            pending.remove(next)
+            results += next.await()
+            if (!graceStarted && results.any { believable(it) }) graceStarted = true
+        }
+        pending.forEach { it.cancel() }
         if (results.none { !it.rejected }) {
             results += safe { rescue(local, cands, guesses) } ?: emptyList()
         }
@@ -59,6 +85,7 @@ object LyricsService {
             } ?: emptyList()
         }
         results.sortedWith(compareBy<LyricsResult> { it.rejected }.thenByDescending { it.score })
+      }
     }
 
     /** Automatic pick for batch mode: a believable match, synced preferred. Null = not found. */
