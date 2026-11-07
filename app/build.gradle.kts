@@ -89,6 +89,6 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
     implementation(libs.ktor.core)
-    implementation(libs.ktor.cio)
+    implementation(libs.ktor.okhttp)
     implementation(libs.taglib)
 }
