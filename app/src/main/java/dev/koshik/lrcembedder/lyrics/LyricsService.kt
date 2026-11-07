@@ -16,24 +16,34 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Lyrics search using MusicResync's matching: several readings of the song (tags, "Artist - Title" file
  * names, primary artist, loosened titles) x several providers in parallel, every hit confidence-scored
  * (title/artist/duration), wrong singers vetoed, and an iTunes/Deezer "last resort" for garbled names.
+ * Several optimizations by Koshik Kumar - https://github.com/KoshikKumar17
  */
 object LyricsService {
     private const val PROVIDER_TIMEOUT_MS = 25_000L
     private const val REQUEST_DELAY_MS = 150L
     private const val MAX_QUERIES = 6
+    /** Spotify is a metered API (free tier ~1000 requests/month), so it gets very few queries per song. */
+    private const val SPOTIFY_MAX_QUERIES = 2
     private const val MAX_LYRIC_FETCH = 4
     private const val MIN_LISTED = 0.45
     private const val DEEZER_MIN_TITLE = 0.55
 
     private class Scored(val raw: RawHit, val conf: ConfidenceBreakdown)
 
-    /** All providers in parallel; trustworthy matches first, doubtful ones after (still selectable). */
+    /** A result good enough that paying for a Spotify request is pointless. */
+    private fun believable(r: LyricsResult) =
+        !r.rejected && r.score >= ConfidenceScorer.REVIEW_THRESHOLD * 100
+
+    /**
+     * Free providers in parallel first; trustworthy matches first, doubtful ones after (still selectable).
+     * Spotify (metered RapidAPI) is only queried as a last resort, when nothing believable was found.
+     */
     suspend fun searchAll(q: SongQuery): List<LyricsResult> = coroutineScope {
         val local = Matcher.localTrack(q)
         val cands = Matcher.candidates(q)
         val guesses = Matcher.artistGuesses(local, cands)
 
-        val jobs = Provider.values().filter { it != Provider.SPOTIFY || SpotifyClient.enabled }.map { p ->
+        val jobs = Provider.values().filter { it != Provider.SPOTIFY }.map { p ->
             async {
                 withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { searchProvider(p, local, cands, guesses) }
                     ?: emptyList()
@@ -42,6 +52,11 @@ object LyricsService {
         val results = jobs.awaitAll().flatten().toMutableList()
         if (results.none { !it.rejected }) {
             results += safe { rescue(local, cands, guesses) } ?: emptyList()
+        }
+        if (SpotifyClient.enabled && results.none { believable(it) }) {
+            results += withTimeoutOrNull(PROVIDER_TIMEOUT_MS) {
+                searchProvider(Provider.SPOTIFY, local, cands, guesses, SPOTIFY_MAX_QUERIES)
+            } ?: emptyList()
         }
         results.sortedWith(compareBy<LyricsResult> { it.rejected }.thenByDescending { it.score })
     }
@@ -58,11 +73,12 @@ object LyricsService {
         p: Provider,
         local: LocalTrack,
         cands: List<QueryCandidate>,
-        guesses: List<String>
+        guesses: List<String>,
+        maxQueries: Int = MAX_QUERIES
     ): List<LyricsResult> {
         val scored = LinkedHashMap<String, Scored>()
         var best = 0.0
-        for (cand in cands.take(MAX_QUERIES)) {
+        for (cand in cands.take(maxQueries)) {
             val raws = safe { withRetry { query(p, cand) } } ?: emptyList()
             for (raw in raws) {
                 var conf = Matcher.score(local, cand, raw)
