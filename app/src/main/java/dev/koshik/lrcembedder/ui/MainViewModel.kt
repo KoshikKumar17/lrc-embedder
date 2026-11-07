@@ -16,6 +16,7 @@ import dev.koshik.lrcembedder.data.SongRepository
 import dev.koshik.lrcembedder.lyrics.LyricsResult
 import dev.koshik.lrcembedder.lyrics.LyricsService
 import dev.koshik.lrcembedder.lyrics.QueryCleaner
+import dev.koshik.lrcembedder.lyrics.SpotifyClient
 import dev.koshik.lrcembedder.ui.theme.Palette
 import dev.koshik.lrcembedder.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
@@ -97,6 +98,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var animatedBg by mutableStateOf(prefs.animated)
         private set
     var showSettings by mutableStateOf(false)
+    var rapidApiKey by mutableStateOf(prefs.rapidApiKey.also { SpotifyClient.userKey = it })
+        private set
 
     var sheet by mutableStateOf<SheetUi?>(null)
         private set
@@ -159,6 +162,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun changePalette(p: Palette) {
         palette = p
         prefs.paletteName = p.name
+    }
+
+    fun changeRapidApiKey(v: String) {
+        rapidApiKey = v
+        prefs.rapidApiKey = v
+        SpotifyClient.userKey = v.trim()
     }
 
     fun changeAnimated(v: Boolean) {

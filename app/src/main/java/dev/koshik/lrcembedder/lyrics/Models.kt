@@ -4,7 +4,8 @@ enum class Provider(val label: String) {
     LRCLIB("LRCLib"),
     NETEASE("Netease"),
     QQ("QQ Music"),
-    DEEZER("Deezer")
+    DEEZER("Deezer"),
+    SPOTIFY("Spotify")
 }
 
 data class LyricsResult(

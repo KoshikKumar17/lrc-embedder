@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.compose.compiler)
+}
+
+// RapidAPI key for the Spotify lyrics provider. Optional: local.properties (RAPIDAPI_KEY=...) or the
+// RAPIDAPI_KEY environment variable / GitHub secret. Empty = users can enter their own key in Settings.
+val rapidApiKey: String = run {
+    val f = rootProject.file("local.properties")
+    val fromFile = if (f.exists()) Properties().apply { f.inputStream().use { load(it) } }.getProperty("RAPIDAPI_KEY") else null
+    (fromFile ?: System.getenv("RAPIDAPI_KEY") ?: "").trim()
 }
 
 android {
@@ -14,6 +24,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.2"
+
+        buildConfigField("String", "RAPIDAPI_KEY", "\"$rapidApiKey\"")
 
         resourceConfigurations += listOf("en")
         ndk { abiFilters += listOf("arm64-v8a") }
@@ -52,6 +64,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         jniLibs { useLegacyPackaging = false }

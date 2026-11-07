@@ -29,6 +29,10 @@ class Prefs(context: Context) {
         get() = sp.getString("sort", "TITLE") ?: "TITLE"
         set(v) = sp.edit().putString("sort", v).apply()
 
+    var rapidApiKey: String
+        get() = sp.getString("rapidapi_key", "") ?: ""
+        set(v) = sp.edit().putString("rapidapi_key", v.trim()).apply()
+
     fun done(): Set<String> = sp.getStringSet("done", emptySet())?.toSet() ?: emptySet()
 
     fun saveDone(paths: Set<String>) {

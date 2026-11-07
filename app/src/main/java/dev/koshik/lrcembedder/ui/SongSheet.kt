@@ -113,7 +113,7 @@ fun SongSheet(vm: MainViewModel, s: SheetUi) {
             if (s.searched && !s.searching && s.results.isEmpty()) {
                 item {
                     Text(
-                        "No lyrics found on LRCLib, Netease or QQ Music. Try editing the name or artist above.",
+                        "No lyrics found on the enabled providers. Try editing the name or artist above.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

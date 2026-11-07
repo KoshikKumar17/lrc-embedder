@@ -33,7 +33,7 @@ object LyricsService {
         val cands = Matcher.candidates(q)
         val guesses = Matcher.artistGuesses(local, cands)
 
-        val jobs = Provider.values().map { p ->
+        val jobs = Provider.values().filter { it != Provider.SPOTIFY || SpotifyClient.enabled }.map { p ->
             async {
                 withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { searchProvider(p, local, cands, guesses) }
                     ?: emptyList()
@@ -103,6 +103,7 @@ object LyricsService {
             Provider.NETEASE -> NeteaseClient.search(text)
             Provider.QQ -> QQMusicClient.search(text)
             Provider.DEEZER -> DeezerClient.search(text)
+            Provider.SPOTIFY -> SpotifyClient.search(text)
         }
     }
 

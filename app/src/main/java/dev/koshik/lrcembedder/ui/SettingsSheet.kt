@@ -21,6 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -30,8 +31,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import dev.koshik.lrcembedder.lyrics.SpotifyClient
 import dev.koshik.lrcembedder.ui.theme.Palette
 import dev.koshik.lrcembedder.ui.theme.ThemeMode
 
@@ -85,6 +90,35 @@ fun SettingsSheet(vm: MainViewModel) {
                 checked = vm.animatedBg,
                 onChange = { vm.changeAnimated(it) }
             )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SectionTitle("Spotify lyrics (RapidAPI key)")
+                OutlinedTextField(
+                    value = vm.rapidApiKey,
+                    onValueChange = { vm.changeRapidApiKey(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("x-rapidapi-key") },
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                Text(
+                    if (SpotifyClient.hasBuiltInKey) {
+                        "A key is already built into this app, so Spotify works out of the box. Enter your own key only to override it."
+                    } else {
+                        "Optional. Add a key to enable Spotify lyrics. Leave empty and the other providers are used."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val uriHandler = LocalUriHandler.current
+                Text(
+                    "How to get a free key (RapidAPI docs)",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable { uriHandler.openUri(SpotifyClient.DOCS_URL) }
+                )
+            }
             SwitchRow(
                 title = "Also save a .lrc file",
                 subtitle = "Writes a .lrc next to every song, in addition to embedding",
