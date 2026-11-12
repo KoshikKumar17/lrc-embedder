@@ -15,7 +15,7 @@ import kotlinx.serialization.json.longOrNull
 /** https://lrclib.net/docs — search results already include the lyrics. */
 object LrcLibClient {
     private const val URL = "https://lrclib.net/api/search"
-    private const val UA = "LRCEmbedder/1.0 (https://github.com)"
+    private const val UA = "LRCEmbedder/1.0 (https://github.com/KoshikKumar17/lrc-embedder)"
 
     /** Free-text search ("title artist"). */
     suspend fun search(query: String): List<RawHit> {

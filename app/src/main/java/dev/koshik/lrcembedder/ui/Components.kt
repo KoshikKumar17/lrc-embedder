@@ -91,6 +91,7 @@ fun providerColor(p: Provider): Color = when (p) {
     Provider.QQ -> MaterialTheme.colorScheme.primary
     Provider.DEEZER -> MaterialTheme.colorScheme.inversePrimary
     Provider.SPOTIFY -> Color(0xFF1DB954)
+    Provider.LRCRED -> Color(0xFFE5484D)
 }
 
 @Composable

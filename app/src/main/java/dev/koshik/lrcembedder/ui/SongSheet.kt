@@ -34,6 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import dev.koshik.lrcembedder.lyrics.LrcRedClient
+import dev.koshik.lrcembedder.lyrics.Provider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,7 +147,19 @@ private fun ResultCard(r: LyricsResult, busy: Boolean, onEmbed: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Pill(r.provider.label, providerColor(r.provider))
+            if (r.provider == Provider.LRCRED) {
+                // lrc.red terms: credit and link back wherever its data is shown.
+                val uriHandler = LocalUriHandler.current
+                Pill(
+                    r.provider.label,
+                    providerColor(r.provider),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable { uriHandler.openUri(LrcRedClient.SITE_URL) }
+                )
+            } else {
+                Pill(r.provider.label, providerColor(r.provider))
+            }
             Spacer(Modifier.width(6.dp))
             Pill(
                 if (r.isSynced) "Synced" else "Plain",

@@ -147,6 +147,7 @@ object LyricsService {
             Provider.QQ -> QQMusicClient.search(text)
             Provider.DEEZER -> DeezerClient.search(text)
             Provider.SPOTIFY -> SpotifyClient.search(text)
+            Provider.LRCRED -> LrcRedClient.search(text)
         }
     }
 

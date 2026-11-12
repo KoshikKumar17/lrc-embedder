@@ -14,6 +14,15 @@ val rapidApiKey: String = run {
     (fromFile ?: System.getenv("RAPIDAPI_KEY") ?: "").trim()
 }
 
+// Contact email sent to lrc.red in the User-Agent / X-Client-ID (required by their terms for bulk use).
+// Optional: local.properties (LRCRED_EMAIL=...) or the LRCRED_EMAIL environment variable / GitHub secret.
+// Empty = lrc.red is still searched, just without an email in the client identification.
+val lrcRedEmail: String = run {
+    val f = rootProject.file("local.properties")
+    val fromFile = if (f.exists()) Properties().apply { f.inputStream().use { load(it) } }.getProperty("LRCRED_EMAIL") else null
+    (fromFile ?: System.getenv("LRCRED_EMAIL") ?: "").trim().replace("\"", "")
+}
+
 android {
     namespace = "dev.koshik.lrcembedder"
     compileSdk = 35
@@ -23,9 +32,10 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.3"
+        versionName = "1.4"
 
         buildConfigField("String", "RAPIDAPI_KEY", "\"$rapidApiKey\"")
+        buildConfigField("String", "LRCRED_EMAIL", "\"$lrcRedEmail\"")
 
         resourceConfigurations += listOf("en")
         ndk { abiFilters += listOf("arm64-v8a") }

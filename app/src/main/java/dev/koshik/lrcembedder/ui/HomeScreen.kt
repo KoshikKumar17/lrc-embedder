@@ -66,6 +66,7 @@ fun HomeScreen(vm: MainViewModel) {
     Scaffold(
         containerColor = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
+/*------------------ Batch download removed, so rate limit not hit on simple use -----------------
         floatingActionButton = {
             if (vm.songs.isNotEmpty()) {
                 val pulse by rememberInfiniteTransition(label = "fab").animateFloat(
@@ -89,6 +90,7 @@ fun HomeScreen(vm: MainViewModel) {
                 )
             }
         }
+*------------------- Batch Download Button -------*/
     ) { padding ->
         Column(
             Modifier
@@ -107,7 +109,7 @@ fun HomeScreen(vm: MainViewModel) {
                         MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold)
                     )
                     Text(
-                        "${vm.songs.size} songs · $withLyrics with lyrics",
+                        "${vm.songs.size} songs",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
